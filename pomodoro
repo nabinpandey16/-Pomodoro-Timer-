@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Pomodoro Timer</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, var(--primary) 0%, #1a1a1a 100%);
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .timer-display {
+            font-size: 6rem;
+            font-weight: bold;
+            margin: 2rem 0;
+            text-shadow: 0 0 20px rgba(52, 152, 219, 0.5);
+        }
+
+        .controls button {
+            padding: 1rem 2rem;
+            margin: 0.5rem;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            background: var(--secondary);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .controls button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px var(--secondary);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .task-list, .distraction-log, .sound-controls {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .progress-ring {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 2rem auto;
+        }
+
+        .progress-ring__circle {
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+            transition: stroke-dashoffset 0.5s linear;
+        }
+
+        .adaptive-message {
+            margin-top: 1rem;
+            color: var(--secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="timer-display" id="timer">25:00</div>
+        <div class="controls">
+            <button id="startBtn">Start</button>
+            <button id="pauseBtn">Pause</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+        
+        <div class="features">
+            <div class="task-list">
+                <h3>Task Manager</h3>
+                <input type="text" id="taskInput" placeholder="Add a task...">
+                <ul id="taskList"></ul>
+            </div>
+            
+            <div class="distraction-log">
+                <h3>Distraction Journal</h3>
+                <textarea id="distractionNotes" rows="4"></textarea>
+            </div>
+            
+            <div class="sound-controls">
+                <h3>Ambient Sounds</h3>
+                <button class="sound-btn" data-sound="rain">🌧️ Rain</button>
+                <button class="sound-btn" data-sound="forest">🌲 Forest</button>
+                <button class="sound-btn" data-sound="cafe">☕ Cafe</button>
+            </div>
+        </div>
+        
+        <div class="adaptive-message" id="adaptiveMessage"></div>
+    </div>
+
+    <script>
+        let workDuration = 25 * 60;
+        let breakDuration = 5 * 60;
+        let timeLeft = workDuration;
+        let timerId = null;
+        let isWorking = true;
+        let completedSessions = 0;
+        let distractions = 0;
+
+        const timerDisplay = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const taskInput = document.getElementById('taskInput');
+        const taskList = document.getElementById('taskList');
+        const distractionNotes = document.getElementById('distractionNotes');
+        const adaptiveMessage = document.getElementById('adaptiveMessage');
+
+        const sounds = {
+            rain: new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'),
+            forest: new Audio('https://assets.mixkit.co/active_storage/sfx/2609/2609-preview.mp3'),
+            cafe: new Audio('https://assets.mixkit.co/active_storage/sfx/2594/2594-preview.mp3')
+        };
+
+        function updateTimerDisplay(seconds) {
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${mins}:${secs}`;
+        }
+
+        function startTimer() {
+            if (!timerId) {
+                timerId = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay(timeLeft);
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(timerId);
+                        timerId = null;
+                        completedSessions++;
+                        if (isWorking) {
+                            adaptiveMessage.textContent = "Take a break! You've earned it!";
+                            timeLeft = breakDuration + Math.floor(completedSessions / 2) * 60;
+                        } else {
+                            adaptiveMessage.textContent = "Time to focus! You've got this!";
+                            timeLeft = workDuration - Math.min(completedSessions, 4) * 60;
+                        }
+                        isWorking = !isWorking;
+                        new Notification(isWorking ? "Work Time!" : "Break Time!");
+                        startTimer();
+                    }
+                }, 1000);
+            }
+        }
+
+        function addTask(taskText) {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                ${taskText}
+                <button class="delete-btn">🗑️</button>
+            `;
+            li.querySelector('.delete-btn').addEventListener('click', () => {
+                li.remove();
+            });
+            taskList.appendChild(li);
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', startTimer);
+        pauseBtn.addEventListener('click', () => {
+            clearInterval(timerId);
+            timerId = null;
+        });
+        resetBtn.addEventListener('click', () => {
+            clearInterval(timerId);
+            timerId = null;
+            timeLeft = isWorking ? workDuration : breakDuration;
+            updateTimerDisplay(timeLeft);
+        });
+
+        taskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && taskInput.value.trim()) {
+                addTask(taskInput.value.trim());
+                taskInput.value = '';
+            }
+        });
+
+        document.querySelectorAll('.sound-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const sound = sounds[this.dataset.sound];
+                sound.loop = true;
+                sound.paused ? sound.play() : sound.pause();
+                this.classList.toggle('active');
+            });
+        });
+
+        distractionNotes.addEventListener('input', () => {
+            distractions++;
+            if (distractions % 3 === 0) {
+                adaptiveMessage.textContent = "Stay focused! You're doing great!";
+            }
+        });
+
+        // Request notification permission
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+    </script>
+</body>
+</html>
